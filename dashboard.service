@@ -1,0 +1,16 @@
+[Unit]
+Description=Dashboard Flask App and Chromium Kiosk
+After=network.target graphical.target
+PartOf=graphical.target
+
+[Service]
+User=admin
+ExecStart=/home/admin/priority_dashboard/start_dashboard.sh
+Restart=always
+RestartSec=5
+WorkingDirectory=/home/admin/priority_dashboard
+TimeoutStartSec=60
+Environment="DISPLAY=:0" "XAUTHORITY=/home/admin/.Xauthority"
+
+[Install]
+WantedBy=graphical.target
