@@ -1,0 +1,10 @@
+(venv) admin@dashboard:~/.ssh $ ls -la ~/.ssh/
+total 32
+drwx------  2 admin admin 4096 Feb 23 07:55 .
+drwx------ 18 admin admin 4096 Feb 23 07:55 ..
+-rw-------  1 admin admin  745 Nov 19 08:45 authorized_keys
+-rw-r--r--  1 admin admin  111 Feb 23 07:55 config
+-rw-------  1 admin admin 2602 Feb 23 06:39 github_key
+-rw-r--r--  1 admin admin  569 Feb 23 06:39 github_key.pub
+-rw-------  1 admin admin  978 Feb 23 07:05 known_hosts
+-rw-r--r--  1 admin admin  142 Feb 23 07:00 known_hosts.old
