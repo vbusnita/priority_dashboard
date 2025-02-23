@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control Panel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         body {
             background-color: #1a1a1a;
@@ -51,6 +52,8 @@
             margin: 5px 0;
             background-color: #2a2a2a;
             border-radius: 5px;
+            height: 60px; /* Fixed height for consistency */
+            width: 100%; /* Full width */
         }
         .task-content {
             flex-grow: 1;
@@ -60,49 +63,52 @@
         }
         .task {
             flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .task.completed {
             color: #aaaaaa;
             text-decoration: line-through;
         }
-        .move-buttons {
-            display: flex;
-            flex-direction: column;
-            margin-left: 10px; /* Space between task and arrows (on right) */
-        }
-        .move-buttons button {
-            padding: 6px 8px;
-            background: transparent; /* Remove background completely */
-            font-size: 1.2em;
-            width: 30px;
-            text-align: center;
-            border: none; /* Ensure no border */
-            box-shadow: none; /* Ensure no shadow */
-            outline: none; /* Remove outline on focus */
-            color: #cccccc; /* Lighter gray for enabled buttons */
-            -webkit-appearance: none; /* Remove browser-specific button styling */
-            -moz-appearance: none;
-            appearance: none;
-        }
-        .move-buttons button:hover:not(:disabled) {
-            background: transparent; /* No hover background box */
-            color: #ffffff; /* White on hover for pressable */
-        }
-        .move-buttons button:disabled {
-            background: transparent; /* No background for disabled */
-            cursor: not-allowed;
-            color: #666; /* Grayed out for disabled */
-            border: none; /* Ensure no border */
-            box-shadow: none; /* Ensure no shadow */
-            outline: none; /* Remove outline on focus */
-            -webkit-appearance: none; /* Remove browser-specific button styling */
-            -moz-appearance: none;
-            appearance: none;
-        }
         .action-buttons {
             display: flex;
             gap: 4px;
             align-items: center;
+        }
+        .move-buttons {
+            display: flex;
+            flex-direction: column;
+            margin-left: 10px;
+        }
+        .move-buttons button {
+            padding: 6px 8px;
+            background: transparent;
+            font-size: 1.2em;
+            width: 30px;
+            text-align: center;
+            border: none;
+            box-shadow: none;
+            outline: none;
+            color: #cccccc;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        .move-buttons button:hover:not(:disabled) {
+            background: transparent;
+            color: #ffffff;
+        }
+        .move-buttons button:disabled {
+            background: transparent;
+            cursor: not-allowed;
+            color: #666;
+            border: none;
+            box-shadow: none;
+            outline: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
         }
         .day-complete, .logs {
             margin-top: 20px;
@@ -111,7 +117,6 @@
         .logs button {
             margin: 0 10px;
         }
-        /* Style for SVG icons */
         .icon-button {
             padding: 8px;
             background: none;
@@ -124,7 +129,7 @@
             vertical-align: middle;
         }
         .icon-button:hover {
-            background-color: #5a5a5a;
+            background-color: #5a5a2a;
             border-radius: 5px;
         }
     </style>
@@ -136,7 +141,7 @@
             <input type="text" id="task" name="task" placeholder="Enter priority..." required>
             <button type="submit">Add</button>
         </form>
-        <div class="task-list">
+        <div class="task-list" id="task-list">
             {% for index, task in tasks %}
                 <div class="task-container">
                     <div class="task-content">
@@ -144,21 +149,31 @@
                         <div class="action-buttons">
                             {% if task.status == 'pending' %}
                                 <button class="icon-button" onclick="togglePlayPause({{ index }}, 'start')">
-                                    <img src="/static/play.svg" alt="Play" class="task-{{ index }}-icon">
+                                    <img src="/static/play.svg" alt="Play">
                                 </button>
                             {% elif task.status == 'in_progress' %}
                                 <button class="icon-button" onclick="togglePlayPause({{ index }}, 'pause')">
-                                    <img src="/static/pause.svg" alt="Pause" class="task-{{ index }}-icon">
+                                    <img src="/static/pause.svg" alt="Pause">
                                 </button>
                                 <button class="icon-button" onclick="completeTask({{ index }})">
                                     <img src="/static/stop.svg" alt="Stop">
+                                </button>
+                                <button class="icon-button" onclick="deleteTask({{ index }})">
+                                    <img src="/static/trash.svg" alt="Delete">
                                 </button>
                             {% elif task.status == 'paused' %}
                                 <button class="icon-button" onclick="togglePlayPause({{ index }}, 'resume')">
-                                    <img src="/static/play.svg" alt="Play" class="task-{{ index }}-icon">
+                                    <img src="/static/play.svg" alt="Play">
                                 </button>
                                 <button class="icon-button" onclick="completeTask({{ index }})">
                                     <img src="/static/stop.svg" alt="Stop">
+                                </button>
+                                <button class="icon-button" onclick="deleteTask({{ index }})">
+                                    <img src="/static/trash.svg" alt="Delete">
+                                </button>
+                            {% else %}
+                                <button class="icon-button" onclick="deleteTask({{ index }})">
+                                    <img src="/static/trash.svg" alt="Delete">
                                 </button>
                             {% endif %}
                         </div>
@@ -187,6 +202,57 @@
         </div>
     </div>
     <script>
+        const socket = io.connect('/');
+
+        socket.on('task_update', function(data) {
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = '';
+            data.tasks.forEach((task, index) => {
+                const taskDiv = document.createElement('div');
+                taskDiv.className = 'task-container';
+                taskDiv.dataset.index = index;
+                taskDiv.innerHTML = `
+                    <div class="task-content">
+                        <span class="task ${task.status}">${task.name}</span>
+                        <div class="action-buttons">
+                            ${task.status === 'pending' ?
+                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'start')">
+                                    <img src="/static/play.svg" alt="Play">
+                                </button>` :
+                                task.status === 'in_progress' ?
+                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'pause')">
+                                    <img src="/static/pause.svg" alt="Pause">
+                                </button>
+                                <button class="icon-button" onclick="completeTask(${index})">
+                                    <img src="/static/stop.svg" alt="Stop">
+                                </button>
+                                <button class="icon-button" onclick="deleteTask(${index})">
+                                    <img src="/static/trash.svg" alt="Delete">
+                                </button>` :
+                                task.status === 'paused' ?
+                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'resume')">
+                                    <img src="/static/play.svg" alt="Play">
+                                </button>
+                                <button class="icon-button" onclick="completeTask(${index})">
+                                    <img src="/static/stop.svg" alt="Stop">
+                                </button>
+                                <button class="icon-button" onclick="deleteTask(${index})">
+                                    <img src="/static/trash.svg" alt="Delete">
+                                </button>` :
+                                `<button class="icon-button" onclick="deleteTask(${index})">
+                                    <img src="/static/trash.svg" alt="Delete">
+                                </button>`}
+                        </div>
+                    </div>
+                    <div class="move-buttons">
+                        ${index > 0 ? `<button onclick="moveTask(${index}, 'up')">↑</button>` : `<button disabled>↑</button>`}
+                        ${index < data.tasks.length - 1 ? `<button onclick="moveTask(${index}, 'down')">↓</button>` : `<button disabled>↓</button>`}
+                    </div>
+                `;
+                taskList.appendChild(taskDiv);
+            });
+        });
+
         document.getElementById('taskForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const task = document.getElementById('task').value;
@@ -194,32 +260,16 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `task=${encodeURIComponent(task)}`
-            }).then(() => {
-                document.getElementById('task').value = '';
-                location.reload();
-            });
+            }).then(() => document.getElementById('task').value = '');
         });
 
         function togglePlayPause(index, action) {
-            if (action === 'start') {
-                fetch('/start_task', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `index=${index}`
-                }).then(() => location.reload());
-            } else if (action === 'pause') {
-                fetch('/pause_task', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `index=${index}`
-                }).then(() => location.reload());
-            } else if (action === 'resume') {
-                fetch('/resume_task', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `index=${index}`
-                }).then(() => location.reload());
-            }
+            const actions = { 'start': '/start_task', 'pause': '/pause_task', 'resume': '/resume_task' };
+            fetch(actions[action], {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `index=${index}`
+            });
         }
 
         function completeTask(index) {
@@ -227,7 +277,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `index=${index}`
-            }).then(() => location.reload());
+            });
         }
 
         function moveTask(index, direction) {
@@ -235,7 +285,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `index=${index}&direction=${direction}`
-            }).then(() => location.reload());
+            });
         }
 
         function dayComplete() {
@@ -243,12 +293,20 @@
                 fetch('/day_complete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                }).then(() => location.reload());
+                });
             }
         }
 
         function downloadLogs(range) {
             window.location.href = `/download_logs/${range}`;
+        }
+
+        function deleteTask(index) {
+            fetch('/delete_task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `index=${index}`
+            });
         }
     </script>
 </body>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Priority Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         body {
             background-color: #1a1a1a;
@@ -42,11 +43,13 @@
             margin: 10px 0;
             border-radius: 8px;
             font-size: 1.8em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .task.completed {
+        .task.completed .task-name {
             color: #aaaaaa;
             text-decoration: line-through;
-            background-color: #3a3a3a;
         }
         .task.in_progress {
             background-color: #d0d0d0;
@@ -55,24 +58,72 @@
         .task.paused {
             background-color: #2f3a2f;
         }
+        .timer {
+            font-size: 0.8em;
+            color: #cccccc;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Today's Priorities</h1>
-        <div class="task-list">
+        <div class="task-list" id="task-list">
             {% for task in tasks %}
-                <div class="task {{ task.status }}">
-                    {{ task.name }}
-                    {% if task.status == 'completed' %}
-                        ({{ (task.time_spent / 60)|round(2) }} min)
-                    {% endif %}
+                <div class="task {{ task.status }}" data-id="{{ task.id }}">
+                    <span class="task-name">{{ task.name }}</span>
+                    <span class="timer" data-start="{{ task.start_time }}" data-spent="{{ task.time_spent }}" data-pause="{{ task.pause_time }}"></span>
                 </div>
             {% endfor %}
         </div>
     </div>
     <script>
-        setInterval(() => location.reload(), 5000);
+        const socket = io.connect('/');
+
+        socket.on('task_update', function(data) {
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = '';
+            data.tasks.forEach(task => {
+                const taskDiv = document.createElement('div');
+                taskDiv.className = `task ${task.status}`;
+                taskDiv.dataset.id = task.id;
+                taskDiv.innerHTML = `
+                    <span class="task-name">${task.name}</span>
+                    <span class="timer" data-start="${task.start_time || ''}" data-spent="${task.time_spent || 0}" data-pause="${task.pause_time || ''}"></span>
+                `;
+                taskList.appendChild(taskDiv);
+            });
+            updateTimers();
+        });
+
+        function formatTime(seconds) {
+            if (!seconds || seconds < 0) return '';
+            if (seconds < 60) return `${Math.floor(seconds)}s`;
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m ${Math.floor(seconds % 60)}s`;
+            const hours = Math.floor(minutes / 60);
+            return `${hours}h ${minutes % 60}m`;
+        }
+
+        function updateTimers() {
+            const now = Date.now() / 1000; // Convert to seconds
+            document.querySelectorAll('.timer').forEach(timer => {
+                const start = parseFloat(timer.dataset.start);
+                const spent = parseFloat(timer.dataset.spent);
+                const pause = parseFloat(timer.dataset.pause);
+                const taskDiv = timer.parentElement;
+                let timeDisplay = '';
+                if (taskDiv.classList.contains('in_progress') && start) {
+                    timeDisplay = formatTime(spent + (now - start));
+                } else if (taskDiv.classList.contains('paused') && spent) {
+                    timeDisplay = formatTime(spent);
+                } else if (taskDiv.classList.contains('completed') && spent) {
+                    timeDisplay = formatTime(spent);
+                }
+                timer.textContent = timeDisplay;
+            });
+        }
+
+        setInterval(updateTimers, 1000); // Update every second
     </script>
 </body>
 </html>

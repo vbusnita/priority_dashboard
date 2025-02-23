@@ -1,4 +1,8 @@
 from flask import Flask, render_template, request, jsonify, send_file
+from flask_socketio import SocketIO, emit
+import eventlet
+import ssl
+from eventlet import wsgi
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -6,6 +10,8 @@ import csv
 import io
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your-secure-key-here'  # Replace with your actual secure key (e.g., from secrets.token_hex(16))
+socketio = SocketIO(app)
 
 DB_FILE = "tasks.db"
 
@@ -47,6 +53,10 @@ def clear_current_tasks():
     conn.commit()
     conn.close()
 
+def emit_task_update():
+    tasks = get_current_tasks()
+    socketio.emit('task_update', {'tasks': tasks}, namespace='/')
+
 @app.route('/')
 def dashboard():
     tasks = get_current_tasks()
@@ -68,6 +78,7 @@ def add_task():
     c.execute("INSERT INTO current_tasks (name, status, position) VALUES (?, 'pending', ?)", (task, max_pos + 1))
     conn.commit()
     conn.close()
+    emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/start_task', methods=['POST'])
@@ -81,6 +92,7 @@ def start_task():
                   (time.time(), tasks[index]['id']))
         conn.commit()
         conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/pause_task', methods=['POST'])
@@ -96,6 +108,7 @@ def pause_task():
                   (time_spent, current_time, tasks[index]['id']))
         conn.commit()
         conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/resume_task', methods=['POST'])
@@ -109,6 +122,7 @@ def resume_task():
                   (time.time(), tasks[index]['id']))
         conn.commit()
         conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/complete_task', methods=['POST'])
@@ -120,12 +134,13 @@ def complete_task():
         c = conn.cursor()
         if tasks[index]['status'] == 'in_progress':
             time_spent = tasks[index]['time_spent'] + (time.time() - tasks[index]['start_time'])
-        else:  # Paused
+        else:
             time_spent = tasks[index]['time_spent']
         c.execute("UPDATE current_tasks SET status = 'completed', time_spent = ? WHERE id = ?",
                   (time_spent, tasks[index]['id']))
         conn.commit()
         conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/move_task', methods=['POST'])
@@ -148,6 +163,7 @@ def move_task():
                       (tasks[index]['position'], tasks[index + 1]['id']))
         conn.commit()
         conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/day_complete', methods=['POST'])
@@ -163,6 +179,25 @@ def day_complete():
         conn.commit()
         conn.close()
         clear_current_tasks()
+        emit_task_update()
+    return jsonify({'status': 'success'})
+
+@app.route('/delete_task', methods=['POST'])
+def delete_task():
+    index = int(request.form['index'])
+    tasks = get_current_tasks()
+    if 0 <= index < len(tasks):
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        c = conn.cursor()
+        c.execute("DELETE FROM current_tasks WHERE id = ?", (tasks[index]['id'],))
+        # Reorder positions after deletion
+        c.execute("SELECT id, position FROM current_tasks ORDER BY position")
+        remaining_tasks = c.fetchall()
+        for i, (task_id, _) in enumerate(remaining_tasks):
+            c.execute("UPDATE current_tasks SET position = ? WHERE id = ?", (i + 1, task_id))
+        conn.commit()
+        conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/download_logs/<string:range_type>')
@@ -194,6 +229,18 @@ def download_logs(range_type):
         download_name=filename
     )
 
+@socketio.on('connect', namespace='/')
+def handle_connect():
+    emit_task_update()
+
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    listener = eventlet.listen(('0.0.0.0', 5000))
+    secure_listener = eventlet.wrap_ssl(
+        listener,
+        certfile='/home/admin/priority_dashboard/ssl/cert.pem',
+        keyfile='/home/admin/priority_dashboard/ssl/key.pem',
+        server_side=True,
+        ssl_version=ssl.PROTOCOL_TLSv1_2
+    )
+    wsgi.server(secure_listener, app, log_output=False)
