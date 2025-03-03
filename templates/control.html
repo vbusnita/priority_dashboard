@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control Panel</title>
+    <title>Priority Panel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         body {
@@ -52,29 +52,23 @@
             margin: 5px 0;
             background-color: #2a2a2a;
             border-radius: 5px;
-            height: 60px; /* Fixed height for consistency */
-            width: 100%; /* Full width */
         }
         .task-content {
             flex-grow: 1;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            overflow: hidden;
         }
         .task {
             flex-grow: 1;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
         }
         .task.completed {
             color: #aaaaaa;
             text-decoration: line-through;
-        }
-        .action-buttons {
-            display: flex;
-            gap: 4px;
-            align-items: center;
         }
         .move-buttons {
             display: flex;
@@ -110,12 +104,10 @@
             -moz-appearance: none;
             appearance: none;
         }
-        .day-complete, .logs {
-            margin-top: 20px;
-            text-align: center;
-        }
-        .logs button {
-            margin: 0 10px;
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
         }
         .icon-button {
             padding: 8px;
@@ -129,14 +121,23 @@
             vertical-align: middle;
         }
         .icon-button:hover {
-            background-color: #5a5a2a;
+            background-color: #5a5a5a;
             border-radius: 5px;
+        }
+        .edit-input {
+            display: none;
+            padding: 10px;
+            background-color: #2a2a2a;
+            border: none;
+            color: #fff;
+            border-radius: 5px;
+            width: 70%;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Control Panel</h1>
+        <h1>Priority Panel</h1>
         <form id="taskForm">
             <input type="text" id="task" name="task" placeholder="Enter priority..." required>
             <button type="submit">Add</button>
@@ -145,37 +146,34 @@
             {% for index, task in tasks %}
                 <div class="task-container">
                     <div class="task-content">
-                        <span class="task {{ task.status }}">{{ task.name }}</span>
+                        <span class="task {{ task.status }}" id="task-name-{{ index }}">{{ task.name }}</span>
+                        <input type="text" class="edit-input" id="edit-input-{{ index }}" value="{{ task.name }}">
                         <div class="action-buttons">
                             {% if task.status == 'pending' %}
-                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'start')">
-                                    <img src="/static/play.svg" alt="Play">
+                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'start', {{ task.id }})">
+                                    <img src="/static/play.svg" alt="Play" class="task-{{ index }}-icon">
                                 </button>
                             {% elif task.status == 'in_progress' %}
-                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'pause')">
-                                    <img src="/static/pause.svg" alt="Pause">
+                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'pause', {{ task.id }})">
+                                    <img src="/static/pause.svg" alt="Pause" class="task-{{ index }}-icon">
                                 </button>
-                                <button class="icon-button" onclick="completeTask({{ index }})">
-                                    <img src="/static/stop.svg" alt="Stop">
-                                </button>
-                                <button class="icon-button" onclick="deleteTask({{ index }})">
-                                    <img src="/static/trash.svg" alt="Delete">
+                                <button class="icon-button" onclick="completeTask({{ index }}, {{ task.id }})">
+                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
                                 </button>
                             {% elif task.status == 'paused' %}
-                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'resume')">
-                                    <img src="/static/play.svg" alt="Play">
+                                <button class="icon-button" onclick="togglePlayPause({{ index }}, 'resume', {{ task.id }})">
+                                    <img src="/static/play.svg" alt="Play" class="task-{{ index }}-icon">
                                 </button>
-                                <button class="icon-button" onclick="completeTask({{ index }})">
-                                    <img src="/static/stop.svg" alt="Stop">
-                                </button>
-                                <button class="icon-button" onclick="deleteTask({{ index }})">
-                                    <img src="/static/trash.svg" alt="Delete">
-                                </button>
-                            {% else %}
-                                <button class="icon-button" onclick="deleteTask({{ index }})">
-                                    <img src="/static/trash.svg" alt="Delete">
+                                <button class="icon-button" onclick="completeTask({{ index }}, {{ task.id }})">
+                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
                                 </button>
                             {% endif %}
+                            <button class="icon-button" onclick="editTask({{ index }})">
+                                <img src="/static/edit.svg" alt="Edit">
+                            </button>
+                            <button class="icon-button" onclick="deleteTask({{ index }})">
+                                <img src="/static/trash.svg" alt="Delete" onerror="console.error('Failed to load trash.svg'); this.src='/static/edit.svg';">
+                            </button>
                         </div>
                     </div>
                     <div class="move-buttons">
@@ -193,16 +191,9 @@
                 </div>
             {% endfor %}
         </div>
-        <div class="day-complete">
-            <button onclick="dayComplete()">Day Complete</button>
-        </div>
-        <div class="logs">
-            <button onclick="downloadLogs('last7')">Download Last 7 Days</button>
-            <button onclick="downloadLogs('all')">Download All Logs</button>
-        </div>
     </div>
     <script>
-        const socket = io.connect('/');
+        const socket = io.connect('https://' + window.location.host + '/');
 
         socket.on('task_update', function(data) {
             const taskList = document.getElementById('task-list');
@@ -210,43 +201,41 @@
             data.tasks.forEach((task, index) => {
                 const taskDiv = document.createElement('div');
                 taskDiv.className = 'task-container';
-                taskDiv.dataset.index = index;
                 taskDiv.innerHTML = `
                     <div class="task-content">
-                        <span class="task ${task.status}">${task.name}</span>
+                        <span class="task ${task.status}" id="task-name-${index}">${task.name}</span>
+                        <input type="text" class="edit-input" id="edit-input-${index}" value="${task.name}">
                         <div class="action-buttons">
-                            ${task.status === 'pending' ?
-                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'start')">
-                                    <img src="/static/play.svg" alt="Play">
-                                </button>` :
-                                task.status === 'in_progress' ?
-                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'pause')">
-                                    <img src="/static/pause.svg" alt="Pause">
+                            ${task.status === 'pending' ? `
+                                <button class="icon-button" onclick="togglePlayPause(${index}, 'start', ${task.id})">
+                                    <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
                                 </button>
-                                <button class="icon-button" onclick="completeTask(${index})">
-                                    <img src="/static/stop.svg" alt="Stop">
+                            ` : task.status === 'in_progress' ? `
+                                <button class="icon-button" onclick="togglePlayPause(${index}, 'pause', ${task.id})">
+                                    <img src="/static/pause.svg" alt="Pause" class="task-${index}-icon">
                                 </button>
-                                <button class="icon-button" onclick="deleteTask(${index})">
-                                    <img src="/static/trash.svg" alt="Delete">
-                                </button>` :
-                                task.status === 'paused' ?
-                                `<button class="icon-button" onclick="togglePlayPause(${index}, 'resume')">
-                                    <img src="/static/play.svg" alt="Play">
+                                <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
+                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
                                 </button>
-                                <button class="icon-button" onclick="completeTask(${index})">
-                                    <img src="/static/stop.svg" alt="Stop">
+                            ` : task.status === 'paused' ? `
+                                <button class="icon-button" onclick="togglePlayPause(${index}, 'resume', ${task.id})">
+                                    <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
                                 </button>
-                                <button class="icon-button" onclick="deleteTask(${index})">
-                                    <img src="/static/trash.svg" alt="Delete">
-                                </button>` :
-                                `<button class="icon-button" onclick="deleteTask(${index})">
-                                    <img src="/static/trash.svg" alt="Delete">
-                                </button>`}
+                                <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
+                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
+                                </button>
+                            ` : ''}
+                            <button class="icon-button" onclick="editTask(${index})">
+                                <img src="/static/edit.svg" alt="Edit">
+                            </button>
+                            <button class="icon-button" onclick="deleteTask(${index})">
+                                <img src="/static/trash.svg" alt="Delete" onerror="console.error('Failed to load trash.svg'); this.src='/static/edit.svg';">
+                            </button>
                         </div>
                     </div>
                     <div class="move-buttons">
-                        ${index > 0 ? `<button onclick="moveTask(${index}, 'up')">↑</button>` : `<button disabled>↑</button>`}
-                        ${index < data.tasks.length - 1 ? `<button onclick="moveTask(${index}, 'down')">↓</button>` : `<button disabled>↓</button>`}
+                        ${index > 0 ? `<button onclick="moveTask(${index}, 'up')">↑</button>` : '<button disabled>↑</button>'}
+                        ${index < data.tasks.length - 1 ? `<button onclick="moveTask(${index}, 'down')">↓</button>` : '<button disabled>↓</button>'}
                     </div>
                 `;
                 taskList.appendChild(taskDiv);
@@ -263,49 +252,50 @@
             }).then(() => document.getElementById('task').value = '');
         });
 
-        function togglePlayPause(index, action) {
-            const actions = { 'start': '/start_task', 'pause': '/pause_task', 'resume': '/resume_task' };
-            fetch(actions[action], {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `index=${index}`
-            });
-        }
-
-        function completeTask(index) {
-            fetch('/complete_task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `index=${index}`
-            });
-        }
-
-        function moveTask(index, direction) {
-            fetch('/move_task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `index=${index}&direction=${direction}`
-            });
-        }
-
-        function dayComplete() {
-            if (confirm("End the day and log tasks? This will clear the current list.")) {
-                fetch('/day_complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-                });
+        function togglePlayPause(index, action, taskId) {
+            if (action === 'start') {
+                fetch('/start_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}` });
+            } else if (action === 'pause') {
+                fetch('/pause_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}` });
+            } else if (action === 'resume') {
+                fetch('/resume_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}` });
             }
         }
 
-        function downloadLogs(range) {
-            window.location.href = `/download_logs/${range}`;
+        function completeTask(index, taskId) {
+            fetch('/complete_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}` });
+        }
+
+        function moveTask(index, direction) {
+            fetch('/move_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}&direction=${direction}` });
         }
 
         function deleteTask(index) {
-            fetch('/delete_task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `index=${index}`
+            fetch('/delete_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}` });
+        }
+
+        function editTask(index) {
+            const taskName = document.getElementById(`task-name-${index}`);
+            const editInput = document.getElementById(`edit-input-${index}`);
+            taskName.style.display = 'none';
+            editInput.style.display = 'inline-block';
+            editInput.focus();
+            editInput.addEventListener('blur', function() {
+                const newName = editInput.value.trim();
+                if (newName) {
+                    fetch('/edit_task', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `index=${index}&name=${encodeURIComponent(newName)}`
+                    });
+                }
+                editInput.style.display = 'none';
+                taskName.style.display = 'inline-block';
+            });
+            editInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    editInput.blur();
+                }
             });
         }
     </script>

@@ -1,16 +1,13 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 import eventlet
 import ssl
 from eventlet import wsgi
 import sqlite3
 import time
-from datetime import datetime, timedelta
-import csv
-import io
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secure-key-here'  # Replace with your actual secure key (e.g., from secrets.token_hex(16))
+app.config['SECRET_KEY'] = 'your-secure-key-here'  # Replace with your actual secure key
 socketio = SocketIO(app)
 
 DB_FILE = "tasks.db"
@@ -27,13 +24,6 @@ def init_db():
         pause_time REAL,
         position INTEGER
     )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS task_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT NOT NULL,
-        name TEXT NOT NULL,
-        status TEXT NOT NULL,
-        time_spent REAL DEFAULT 0
-    )''')
     conn.commit()
     conn.close()
 
@@ -45,13 +35,6 @@ def get_current_tasks():
     tasks = [dict(row) for row in c.fetchall()]
     conn.close()
     return tasks
-
-def clear_current_tasks():
-    conn = sqlite3.connect(DB_FILE, timeout=10)
-    c = conn.cursor()
-    c.execute("DELETE FROM current_tasks")
-    conn.commit()
-    conn.close()
 
 def emit_task_update():
     tasks = get_current_tasks()
@@ -166,22 +149,6 @@ def move_task():
         emit_task_update()
     return jsonify({'status': 'success'})
 
-@app.route('/day_complete', methods=['POST'])
-def day_complete():
-    tasks = get_current_tasks()
-    if tasks:
-        conn = sqlite3.connect(DB_FILE, timeout=10)
-        c = conn.cursor()
-        today = datetime.now().strftime('%Y-%m-%d')
-        for task in tasks:
-            c.execute("INSERT INTO task_history (date, name, status, time_spent) VALUES (?, ?, ?, ?)",
-                      (today, task['name'], task['status'], task['time_spent']))
-        conn.commit()
-        conn.close()
-        clear_current_tasks()
-        emit_task_update()
-    return jsonify({'status': 'success'})
-
 @app.route('/delete_task', methods=['POST'])
 def delete_task():
     index = int(request.form['index'])
@@ -190,7 +157,6 @@ def delete_task():
         conn = sqlite3.connect(DB_FILE, timeout=10)
         c = conn.cursor()
         c.execute("DELETE FROM current_tasks WHERE id = ?", (tasks[index]['id'],))
-        # Reorder positions after deletion
         c.execute("SELECT id, position FROM current_tasks ORDER BY position")
         remaining_tasks = c.fetchall()
         for i, (task_id, _) in enumerate(remaining_tasks):
@@ -200,34 +166,19 @@ def delete_task():
         emit_task_update()
     return jsonify({'status': 'success'})
 
-@app.route('/download_logs/<string:range_type>')
-def download_logs(range_type):
-    conn = sqlite3.connect(DB_FILE, timeout=10)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    if range_type == 'last7':
-        seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        c.execute("SELECT date, name, status, time_spent FROM task_history WHERE date >= ?", (seven_days_ago,))
-        filename = "task_history_last7days.csv"
-    elif range_type == 'all':
-        c.execute("SELECT date, name, status, time_spent FROM task_history")
-        filename = "task_history_all.csv"
-    else:
-        return "Invalid range", 400
-    tasks = [dict(row) for row in c.fetchall()]
-    conn.close()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Date', 'Task Name', 'Status', 'Time Spent (min)'])
-    for task in tasks:
-        writer.writerow([task['date'], task['name'], task['status'], (task['time_spent'] / 60) if task['time_spent'] else 0])
-    output.seek(0)
-    return send_file(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name=filename
-    )
+@app.route('/edit_task', methods=['POST'])
+def edit_task():
+    index = int(request.form['index'])
+    new_name = request.form['name']
+    tasks = get_current_tasks()
+    if 0 <= index < len(tasks):
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        c = conn.cursor()
+        c.execute("UPDATE current_tasks SET name = ? WHERE id = ?", (new_name, tasks[index]['id']))
+        conn.commit()
+        conn.close()
+        emit_task_update()
+    return jsonify({'status': 'success'})
 
 @socketio.on('connect', namespace='/')
 def handle_connect():
