@@ -7,7 +7,7 @@ import sqlite3
 import time
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secure-key-here'  # Replace with your actual secure key
+app.config['SECRET_KEY'] = 'your-secure-key-here'
 socketio = SocketIO(app)
 
 DB_FILE = "tasks.db"
@@ -24,8 +24,25 @@ def init_db():
         pause_time REAL,
         position INTEGER
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS subtasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        completed INTEGER DEFAULT 0,
+        position INTEGER,
+        FOREIGN KEY (task_id) REFERENCES current_tasks(id) ON DELETE CASCADE
+    )''')
     conn.commit()
     conn.close()
+
+def get_subtasks(task_id):
+    conn = sqlite3.connect(DB_FILE, timeout=10)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT id, task_id, name, completed, position FROM subtasks WHERE task_id = ? ORDER BY position, id", (task_id,))
+    subtasks = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return subtasks
 
 def get_current_tasks():
     conn = sqlite3.connect(DB_FILE, timeout=10)
@@ -33,6 +50,8 @@ def get_current_tasks():
     c = conn.cursor()
     c.execute("SELECT id, name, status, start_time, time_spent, pause_time, position FROM current_tasks ORDER BY position, id")
     tasks = [dict(row) for row in c.fetchall()]
+    for task in tasks:
+        task['subtasks'] = get_subtasks(task['id'])
     conn.close()
     return tasks
 
@@ -62,6 +81,23 @@ def add_task():
     conn.commit()
     conn.close()
     emit_task_update()
+    return jsonify({'status': 'success'})
+
+@app.route('/add_subtask', methods=['POST'])
+def add_subtask():
+    task_index = int(request.form['task_index'])
+    subtask_name = request.form['subtask']
+    tasks = get_current_tasks()
+    if 0 <= task_index < len(tasks):
+        task_id = tasks[task_index]['id']
+        conn = sqlite3.connect(DB_FILE, timeout=10)
+        c = conn.cursor()
+        c.execute("SELECT MAX(position) FROM subtasks WHERE task_id = ?", (task_id,))
+        max_pos = c.fetchone()[0] or 0
+        c.execute("INSERT INTO subtasks (task_id, name, position) VALUES (?, ?, ?)", (task_id, subtask_name, max_pos + 1))
+        conn.commit()
+        conn.close()
+        emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/start_task', methods=['POST'])
@@ -126,6 +162,23 @@ def complete_task():
         emit_task_update()
     return jsonify({'status': 'success'})
 
+@app.route('/complete_subtask', methods=['POST'])
+def complete_subtask():
+    task_index = int(request.form['task_index'])
+    subtask_index = int(request.form['subtask_index'])
+    tasks = get_current_tasks()
+    if 0 <= task_index < len(tasks):
+        subtasks = tasks[task_index]['subtasks']
+        if 0 <= subtask_index < len(subtasks):
+            subtask_id = subtasks[subtask_index]['id']
+            conn = sqlite3.connect(DB_FILE, timeout=10)
+            c = conn.cursor()
+            c.execute("UPDATE subtasks SET completed = 1 WHERE id = ?", (subtask_id,))
+            conn.commit()
+            conn.close()
+            emit_task_update()
+    return jsonify({'status': 'success'})
+
 @app.route('/move_task', methods=['POST'])
 def move_task():
     index = int(request.form['index'])
@@ -147,6 +200,32 @@ def move_task():
         conn.commit()
         conn.close()
         emit_task_update()
+    return jsonify({'status': 'success'})
+
+@app.route('/move_subtask', methods=['POST'])
+def move_subtask():
+    task_index = int(request.form['task_index'])
+    subtask_index = int(request.form['subtask_index'])
+    direction = request.form['direction']
+    tasks = get_current_tasks()
+    if 0 <= task_index < len(tasks):
+        subtasks = tasks[task_index]['subtasks']
+        if 0 <= subtask_index < len(subtasks):
+            conn = sqlite3.connect(DB_FILE, timeout=10)
+            c = conn.cursor()
+            if direction == 'up' and subtask_index > 0:
+                c.execute("UPDATE subtasks SET position = ? WHERE id = ?",
+                          (subtasks[subtask_index - 1]['position'], subtasks[subtask_index]['id']))
+                c.execute("UPDATE subtasks SET position = ? WHERE id = ?",
+                          (subtasks[subtask_index]['position'], subtasks[subtask_index - 1]['id']))
+            elif direction == 'down' and subtask_index < len(subtasks) - 1:
+                c.execute("UPDATE subtasks SET position = ? WHERE id = ?",
+                          (subtasks[subtask_index + 1]['position'], subtasks[subtask_index]['id']))
+                c.execute("UPDATE subtasks SET position = ? WHERE id = ?",
+                          (subtasks[subtask_index]['position'], subtasks[subtask_index + 1]['id']))
+            conn.commit()
+            conn.close()
+            emit_task_update()
     return jsonify({'status': 'success'})
 
 @app.route('/delete_task', methods=['POST'])

@@ -43,9 +43,6 @@
             margin: 10px 0;
             border-radius: 8px;
             font-size: 1.8em;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
         .task.completed .task-name {
             color: #aaaaaa;
@@ -58,9 +55,26 @@
         .task.paused {
             background-color: #2f3a2f;
         }
+        .task-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         .timer {
             font-size: 0.8em;
             color: #cccccc;
+        }
+        .subtask-summary {
+            font-size: 0.9em;
+            color: #cccccc;
+            margin-top: 5px;
+            padding-left: 20px;
+        }
+        .next-subtask {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 2px;
+            padding-left: 20px;
         }
     </style>
 </head>
@@ -70,8 +84,21 @@
         <div class="task-list" id="task-list">
             {% for task in tasks %}
                 <div class="task {{ task.status }}" data-id="{{ task.id }}">
-                    <span class="task-name">{{ task.name }}</span>
-                    <span class="timer" data-start="{{ task.start_time }}" data-spent="{{ task.time_spent }}" data-pause="{{ task.pause_time }}"></span>
+                    <div class="task-main">
+                        <span class="task-name">{{ task.name }}</span>
+                        <span class="timer" data-start="{{ task.start_time }}" data-spent="{{ task.time_spent }}" data-pause="{{ task.pause_time }}"></span>
+                    </div>
+                    {% if task.subtasks %}
+                        <div class="subtask-summary">
+                            Subtasks: {{ task.subtasks | selectattr('completed') | list | length }}/{{ task.subtasks | length }} completed
+                        </div>
+                        {% set next_subtask = task.subtasks | rejectattr('completed') | first %}
+                        {% if next_subtask %}
+                            <div class="next-subtask">
+                                Next: {{ next_subtask.name }}
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
@@ -83,12 +110,25 @@
             const taskList = document.getElementById('task-list');
             taskList.innerHTML = '';
             data.tasks.forEach(task => {
+                const nextSubtask = task.subtasks.find(subtask => !subtask.completed);
                 const taskDiv = document.createElement('div');
                 taskDiv.className = `task ${task.status}`;
                 taskDiv.dataset.id = task.id;
                 taskDiv.innerHTML = `
-                    <span class="task-name">${task.name}</span>
-                    <span class="timer" data-start="${task.start_time || ''}" data-spent="${task.time_spent || 0}" data-pause="${task.pause_time || ''}"></span>
+                    <div class="task-main">
+                        <span class="task-name">${task.name}</span>
+                        <span class="timer" data-start="${task.start_time || ''}" data-spent="${task.time_spent || 0}" data-pause="${task.pause_time || ''}"></span>
+                    </div>
+                    ${task.subtasks && task.subtasks.length > 0 ? `
+                        <div class="subtask-summary">
+                            Subtasks: ${task.subtasks.filter(s => s.completed).length}/${task.subtasks.length} completed
+                        </div>
+                        ${nextSubtask ? `
+                            <div class="next-subtask">
+                                Next: ${nextSubtask.name}
+                            </div>
+                        ` : ''}
+                    ` : ''}
                 `;
                 taskList.appendChild(taskDiv);
             });
@@ -105,12 +145,12 @@
         }
 
         function updateTimers() {
-            const now = Date.now() / 1000; // Convert to seconds
+            const now = Date.now() / 1000;
             document.querySelectorAll('.timer').forEach(timer => {
                 const start = parseFloat(timer.dataset.start);
                 const spent = parseFloat(timer.dataset.spent);
                 const pause = parseFloat(timer.dataset.pause);
-                const taskDiv = timer.parentElement;
+                const taskDiv = timer.parentElement.parentElement;
                 let timeDisplay = '';
                 if (taskDiv.classList.contains('in_progress') && start) {
                     timeDisplay = formatTime(spent + (now - start));
@@ -123,7 +163,7 @@
             });
         }
 
-        setInterval(updateTimers, 1000); // Update every second
+        setInterval(updateTimers, 1000);
     </script>
 </body>
 </html>

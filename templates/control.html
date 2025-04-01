@@ -19,15 +19,8 @@
         }
         h1 {
             text-align: center;
-        }
-        input[type="text"] {
-            padding: 10px;
-            width: 70%;
-            background-color: #2a2a2a;
-            border: none;
-            color: #fff;
-            border-radius: 5px;
-            margin-right: 10px;
+            font-size: 2.5em;
+            margin-bottom: 20px;
         }
         button {
             padding: 8px 12px;
@@ -36,8 +29,9 @@
             color: #fff;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 1em;
-            margin: 0 4px;
+            font-size: 1.1em;
+            transition: background-color 0.3s;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #5a5a5a;
@@ -47,14 +41,13 @@
         }
         .task-container {
             display: flex;
-            align-items: center;
-            padding: 10px;
-            margin: 5px 0;
+            flex-direction: column;
+            padding: 15px;
+            margin: 10px 0;
             background-color: #2a2a2a;
             border-radius: 5px;
         }
         .task-content {
-            flex-grow: 1;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -65,44 +58,11 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-size: 1.2em;
         }
         .task.completed {
             color: #aaaaaa;
             text-decoration: line-through;
-        }
-        .move-buttons {
-            display: flex;
-            flex-direction: column;
-            margin-left: 10px;
-        }
-        .move-buttons button {
-            padding: 6px 8px;
-            background: transparent;
-            font-size: 1.2em;
-            width: 30px;
-            text-align: center;
-            border: none;
-            box-shadow: none;
-            outline: none;
-            color: #cccccc;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-        }
-        .move-buttons button:hover:not(:disabled) {
-            background: transparent;
-            color: #ffffff;
-        }
-        .move-buttons button:disabled {
-            background: transparent;
-            cursor: not-allowed;
-            color: #666;
-            border: none;
-            box-shadow: none;
-            outline: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
         }
         .action-buttons {
             display: flex;
@@ -128,23 +88,112 @@
             display: none;
             padding: 10px;
             background-color: #2a2a2a;
-            border: none;
+            border: 1px solid #555;
             color: #fff;
             border-radius: 5px;
             width: 70%;
+            font-size: 1.1em;
+        }
+        .subtask-section {
+            margin-top: 10px;
+            padding-left: 30px;
+        }
+        .subtask-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .subtask-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1em;
+        }
+        .subtask-name.completed {
+            text-decoration: line-through;
+            color: #aaaaaa;
+        }
+        .subtask-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background-color: #333;
+            border: 2px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .subtask-checkbox:checked {
+            background-color: #4a4a4a;
+            border-color: #4a4a4a;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+            background-size: 16px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .subtask-checkbox:disabled {
+            background-color: #222;
+            border-color: #444;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        dialog {
+            background-color: #2a2a2a;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        dialog h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+        dialog select, dialog input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 5px;
+            font-size: 1.1em;
+            box-sizing: border-box;
+        }
+        dialog select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 16px;
+        }
+        dialog .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        dialog button {
+            padding: 8px 16px;
+            font-size: 1em;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Priority Panel</h1>
-        <form id="taskForm">
-            <input type="text" id="task" name="task" placeholder="Enter priority..." required>
-            <button type="submit">Add</button>
-        </form>
+        <div>
+            <button type="button" onclick="openAddTaskModal()">New Task</button>
+            <button type="button" onclick="openAddSubtaskModal()">Subtask</button>
+        </div>
         <div class="task-list" id="task-list">
             {% for index, task in tasks %}
-                <div class="task-container">
+                <section class="task-container" data-index="{{ index }}" data-status="{{ task.status }}">
                     <div class="task-content">
                         <span class="task {{ task.status }}" id="task-name-{{ index }}">{{ task.name }}</span>
                         <input type="text" class="edit-input" id="edit-input-{{ index }}" value="{{ task.name }}">
@@ -176,80 +225,164 @@
                             </button>
                         </div>
                     </div>
-                    <div class="move-buttons">
-                        {% if index > 0 %}
-                            <button onclick="moveTask({{ index }}, 'up')">↑</button>
-                        {% else %}
-                            <button disabled>↑</button>
-                        {% endif %}
-                        {% if index < tasks|length - 1 %}
-                            <button onclick="moveTask({{ index }}, 'down')">↓</button>
-                        {% else %}
-                            <button disabled>↓</button>
-                        {% endif %}
+                    <div class="subtask-section">
+                        <div class="subtask-list" id="subtask-list-{{ index }}">
+                            {% for subtask in task.subtasks %}
+                                <div class="subtask-item" data-subtask-index="{{ loop.index0 }}">
+                                    <input type="checkbox" class="subtask-checkbox" data-task-index="{{ index }}" data-subtask-index="{{ loop.index0 }}" {% if subtask.completed %}checked{% endif %} {% if task.status != 'in_progress' %}disabled{% endif %}>
+                                    <span class="subtask-name {% if subtask.completed %}completed{% endif %}">{{ subtask.name }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
-                </div>
+                </section>
             {% endfor %}
         </div>
     </div>
+    <dialog id="addTaskModal">
+        <h2>New Task</h2>
+        <form id="addTaskForm">
+            <input type="text" id="taskName" name="task" placeholder="Enter task name..." required>
+            <div class="modal-buttons">
+                <button type="button" onclick="document.getElementById('addTaskModal').close()">Cancel</button>
+                <button type="submit">Add</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="addSubtaskModal">
+        <h2>Add Subtask</h2>
+        <form id="addSubtaskForm">
+            <select id="subtaskTaskSelect" name="task_index" required>
+                <option value="">Select a task...</option>
+                {% for index, task in tasks %}
+                    <option value="{{ index }}">{{ task.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" id="subtaskName" name="subtask" placeholder="Enter subtask..." required>
+            <div class="modal-buttons">
+                <button type="button" onclick="document.getElementById('addSubtaskModal').close()">Cancel</button>
+                <button type="submit">Add</button>
+            </div>
+        </form>
+    </dialog>
     <script>
         const socket = io.connect('https://' + window.location.host + '/');
 
-        socket.on('task_update', function(data) {
-            const taskList = document.getElementById('task-list');
-            taskList.innerHTML = '';
-            data.tasks.forEach((task, index) => {
-                const taskDiv = document.createElement('div');
-                taskDiv.className = 'task-container';
-                taskDiv.innerHTML = `
-                    <div class="task-content">
-                        <span class="task ${task.status}" id="task-name-${index}">${task.name}</span>
-                        <input type="text" class="edit-input" id="edit-input-${index}" value="${task.name}">
-                        <div class="action-buttons">
-                            ${task.status === 'pending' ? `
-                                <button class="icon-button" onclick="togglePlayPause(${index}, 'start', ${task.id})">
-                                    <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
+        let updateTimeout = null;
+        function debounceUpdate(data) {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                const taskList = document.getElementById('task-list');
+                taskList.innerHTML = '';
+                data.tasks.forEach((task, index) => {
+                    const taskDiv = document.createElement('section');
+                    taskDiv.className = 'task-container';
+                    taskDiv.dataset.index = index;
+                    taskDiv.dataset.status = task.status;
+                    taskDiv.innerHTML = `
+                        <div class="task-content">
+                            <span class="task ${task.status}" id="task-name-${index}">${task.name}</span>
+                            <input type="text" class="edit-input" id="edit-input-${index}" value="${task.name}">
+                            <div class="action-buttons">
+                                ${task.status === 'pending' ? `
+                                    <button class="icon-button" onclick="togglePlayPause(${index}, 'start', ${task.id})">
+                                        <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
+                                    </button>
+                                ` : task.status === 'in_progress' ? `
+                                    <button class="icon-button" onclick="togglePlayPause(${index}, 'pause', ${task.id})">
+                                        <img src="/static/pause.svg" alt="Pause" class="task-${index}-icon">
+                                    </button>
+                                    <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
+                                        <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
+                                    </button>
+                                ` : task.status === 'paused' ? `
+                                    <button class="icon-button" onclick="togglePlayPause(${index}, 'resume', ${task.id})">
+                                        <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
+                                    </button>
+                                    <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
+                                        <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
+                                    </button>
+                                ` : ''}
+                                <button class="icon-button" onclick="editTask(${index})">
+                                    <img src="/static/edit.svg" alt="Edit">
                                 </button>
-                            ` : task.status === 'in_progress' ? `
-                                <button class="icon-button" onclick="togglePlayPause(${index}, 'pause', ${task.id})">
-                                    <img src="/static/pause.svg" alt="Pause" class="task-${index}-icon">
+                                <button class="icon-button" onclick="deleteTask(${index})">
+                                    <img src="/static/trash.svg" alt="Delete" onerror="console.error('Failed to load trash.svg'); this.src='/static/edit.svg';">
                                 </button>
-                                <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
-                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
-                                </button>
-                            ` : task.status === 'paused' ? `
-                                <button class="icon-button" onclick="togglePlayPause(${index}, 'resume', ${task.id})">
-                                    <img src="/static/play.svg" alt="Play" class="task-${index}-icon">
-                                </button>
-                                <button class="icon-button" onclick="completeTask(${index}, ${task.id})">
-                                    <img src="/static/stop.svg" alt="Stop" onerror="console.error('Failed to load stop.svg'); this.src='/static/edit.svg';">
-                                </button>
-                            ` : ''}
-                            <button class="icon-button" onclick="editTask(${index})">
-                                <img src="/static/edit.svg" alt="Edit">
-                            </button>
-                            <button class="icon-button" onclick="deleteTask(${index})">
-                                <img src="/static/trash.svg" alt="Delete" onerror="console.error('Failed to load trash.svg'); this.src='/static/edit.svg';">
-                            </button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="move-buttons">
-                        ${index > 0 ? `<button onclick="moveTask(${index}, 'up')">↑</button>` : '<button disabled>↑</button>'}
-                        ${index < data.tasks.length - 1 ? `<button onclick="moveTask(${index}, 'down')">↓</button>` : '<button disabled>↓</button>'}
-                    </div>
-                `;
-                taskList.appendChild(taskDiv);
-            });
+                        <div class="subtask-section">
+                            <div class="subtask-list" id="subtask-list-${index}">
+                                ${task.subtasks.map((subtask, subIndex) => `
+                                    <div class="subtask-item" data-subtask-index="${subIndex}">
+                                        <input type="checkbox" class="subtask-checkbox" data-task-index="${index}" data-subtask-index="${subIndex}" ${subtask.completed ? 'checked' : ''} ${task.status !== 'in_progress' ? 'disabled' : ''}>
+                                        <span class="subtask-name ${subtask.completed ? 'completed' : ''}">${subtask.name}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    taskList.appendChild(taskDiv);
+                });
+
+                const subtaskSelect = document.getElementById('subtaskTaskSelect');
+                subtaskSelect.innerHTML = '<option value="">Select a task...</option>' + data.tasks.map((task, index) => `<option value="${index}">${task.name}</option>`).join('');
+
+                document.querySelectorAll('.subtask-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        const taskIndex = checkbox.dataset.taskIndex;
+                        const subtaskIndex = checkbox.dataset.subtaskIndex;
+                        if (checkbox.checked) {
+                            fetch('/complete_subtask', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: `task_index=${taskIndex}&subtask_index=${subtaskIndex}`
+                            });
+                        }
+                    });
+                });
+            }, 500);
+        }
+
+        socket.on('task_update', function(data) {
+            debounceUpdate(data);
         });
 
-        document.getElementById('taskForm').addEventListener('submit', function(e) {
+        function openAddTaskModal() {
+            document.getElementById('addTaskModal').showModal();
+        }
+
+        document.getElementById('addTaskForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const task = document.getElementById('task').value;
+            const task = document.getElementById('taskName').value;
             fetch('/add_task', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `task=${encodeURIComponent(task)}`
-            }).then(() => document.getElementById('task').value = '');
+            }).then(() => {
+                document.getElementById('addTaskModal').close();
+                document.getElementById('taskName').value = '';
+            });
+        });
+
+        function openAddSubtaskModal() {
+            document.getElementById('addSubtaskModal').showModal();
+        }
+
+        document.getElementById('addSubtaskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const taskIndex = document.getElementById('subtaskTaskSelect').value;
+            const subtask = document.getElementById('subtaskName').value.trim();
+            if (taskIndex && subtask) {
+                fetch('/add_subtask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `task_index=${taskIndex}&subtask=${subtask}`
+                }).then(() => {
+                    document.getElementById('addSubtaskModal').close();
+                    document.getElementById('subtaskName').value = '';
+                });
+            }
         });
 
         function togglePlayPause(index, action, taskId) {
@@ -268,6 +401,14 @@
 
         function moveTask(index, direction) {
             fetch('/move_task', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `index=${index}&direction=${direction}` });
+        }
+
+        function moveSubtask(taskIndex, subtaskIndex, direction) {
+            fetch('/move_subtask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `task_index=${taskIndex}&subtask_index=${subtaskIndex}&direction=${direction}`
+            });
         }
 
         function deleteTask(index) {
@@ -298,6 +439,29 @@
                 }
             });
         }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                const focusedElement = document.activeElement;
+                const taskContainer = focusedElement.closest('.task-container');
+                if (taskContainer) {
+                    const index = parseInt(taskContainer.dataset.index);
+                    const direction = e.key === 'ArrowUp' ? 'up' : 'down';
+                    moveTask(index, direction);
+                }
+            } else if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                const focusedElement = document.activeElement;
+                const subtaskItem = focusedElement.closest('.subtask-item');
+                if (subtaskItem) {
+                    const taskIndex = parseInt(subtaskItem.closest('.task-container').dataset.index);
+                    const subtaskIndex = parseInt(subtaskItem.dataset.subtaskIndex);
+                    const direction = e.key === 'ArrowUp' ? 'up' : 'down';
+                    moveSubtask(taskIndex, subtaskIndex, direction);
+                }
+            }
+        });
     </script>
 </body>
 </html>
